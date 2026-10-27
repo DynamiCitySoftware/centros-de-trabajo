@@ -6,7 +6,7 @@ let
   ventaScript = pkgs.writeShellScriptBin "interfaz-venta" ''
     export DISPLAY=:0
     export XAUTHORITY=/home/pos001/.Xauthority
-    exec ${pythonConPyQt}/bin/python ${./bin/interfaz_principal.py}
+    exec ${pythonConPyQt}/bin/python ${./src/centros_de_trabajo/ui/interfaz_principal.py}
   '';
 
 in {
@@ -20,7 +20,7 @@ in {
     serviceConfig = {
       ExecStart = "${ventaScript}/bin/interfaz-venta";
       Restart = "always";
-      RestartSec = "30s";
+      RestartSec = "60s";
     };
   };
 }
