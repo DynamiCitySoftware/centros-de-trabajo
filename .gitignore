@@ -4,3 +4,7 @@ result
 .direnv/
 *.key
 .pytest_cache/
+salidas/
+
+*.zip
+*.nar
