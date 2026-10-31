@@ -6,9 +6,9 @@ class FakeBackend:
     """Backend de prueba: no usa red, solo registra las órdenes."""
 
     def __init__(self) -> None:
-        self.enviadas: list[Orden] = []
+        self.enviadas: list[tuple[Orden, int]] = []
 
-    def enviar(self, orden: Orden) -> Resultado:
-        self.enviadas.append(orden)
-        print(f"[fake] orden: {orden.value}")
+    def enviar(self, orden: Orden, id_orden: int) -> Resultado:
+        self.enviadas.append((orden, id_orden))
+        print(f"[fake] orden: {orden.value} sobre WO {id_orden}")
         return Resultado(True, f"(fake) {orden.value} registrada")

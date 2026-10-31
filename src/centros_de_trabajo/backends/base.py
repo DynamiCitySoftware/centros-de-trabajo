@@ -11,4 +11,6 @@ class Resultado:
 
 
 class Backend(Protocol):
-    def enviar(self, orden: Orden) -> Resultado: ...
+    def enviar(self, orden: Orden, id_orden: int) -> Resultado:
+        """Ejecuta `orden` sobre la orden de trabajo `id_orden` (id de mrp.workorder)."""
+        ...

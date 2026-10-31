@@ -66,3 +66,19 @@ def estado_esperado(estado: Estado, orden: Orden) -> Estado:
     if siguiente is None:
         raise OrdenInvalida(f"{orden.value} no es válida estando {estado.value}")
     return siguiente
+
+
+def cumple_postcondicion(orden: Orden, ot: OrdenDeTrabajo) -> bool:
+    """¿La WO releída refleja que la orden se ejecutó para ESTE usuario?
+
+    Solo mira state e is_user_working (no OCUPADO/PAUSADO): si otro operario
+    sigue trabajando en la misma WO, la orden igual pudo haber funcionado.
+    Son los mismos valores que midió scripts/probar_escrituras.py.
+    """
+    if orden in (Orden.INICIAR, Orden.REANUDAR):
+        return ot.state == "progress" and ot.is_user_working
+    if orden == Orden.PAUSAR:
+        return ot.state == "progress" and not ot.is_user_working
+    if orden == Orden.TERMINAR:
+        return ot.state == "done"
+    raise ValueError(f"Orden desconocida: {orden!r}")

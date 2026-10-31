@@ -3,11 +3,30 @@ from pathlib import Path
 from xml.parsers.expat import ExpatError
 
 from centros_de_trabajo.backends.base import Resultado
-from centros_de_trabajo.core.ordenes import Orden
+from centros_de_trabajo.core.estado import cumple_postcondicion, derivar_estado, puede
+from centros_de_trabajo.core.ordenes import Orden, OrdenDeTrabajo
+
+# Texto fijo del error de Python cuando un botón de Odoo devuelve None y el
+# servidor no puede serializarlo. Medido: la acción SÍ se ejecutó.
+MSG_RETORNO_NONE = "cannot marshal None"
+
+# Medido en scripts/probar_escrituras.py
+BOTON_POR_ORDEN = {
+    Orden.INICIAR: "button_start",
+    Orden.REANUDAR: "button_start",   # Odoo usa el mismo botón para reanudar
+    Orden.PAUSAR: "button_pending",
+    Orden.TERMINAR: "button_finish",
+}
+
+CAMPOS_WO = ["name", "state", "is_user_working", "working_state", "working_user_ids"]
 
 
 class ErrorDeLogin(Exception):
     """Odoo respondió, pero no aceptó base + usuario + clave."""
+
+
+class OrdenNoExiste(Exception):
+    """No hay una mrp.workorder con ese id (read devuelve [])."""
 
 
 def _proxy(url: str, ruta: str, timeout: float) -> xmlrpc.client.ServerProxy:
@@ -29,6 +48,7 @@ class OdooBackend:
         self._key_file, self._timeout = key_file, timeout
         self._uid: int | None = None
         self._clave: str | None = None
+        self._modelos: xmlrpc.client.ServerProxy | None = None
 
     def _autenticar(self) -> None:
         if self._uid:
@@ -40,25 +60,60 @@ class OdooBackend:
             raise ErrorDeLogin("usuario, base o clave incorrectos")
         self._uid = uid
 
+    def _ejecutar(self, modelo: str, metodo: str, args: list, kwargs: dict | None = None):
+        """Único punto por donde sale una llamada a Odoo (los tests lo reemplazan)."""
+        self._autenticar()
+        if self._modelos is None:
+            self._modelos = _proxy(self._url, "/xmlrpc/2/object", self._timeout)
+        return self._modelos.execute_kw(self._db, self._uid, self._clave,
+                                        modelo, metodo, args, kwargs or {})
+
     def verificar(self) -> Resultado:
         """Lectura inocua del propio usuario: prueba de conexión."""
         return self._con_manejo_de_errores(self._leer_usuario)
 
     def _leer_usuario(self) -> Resultado:
-        self._autenticar()
-        modelos = _proxy(self._url, "/xmlrpc/2/object", self._timeout)
-        datos = modelos.execute_kw(self._db, self._uid, self._clave, "res.users", "read",
-                                   [[self._uid]], {"fields": ["name"]})
+        datos = self._ejecutar("res.users", "read", [[self._uid or 0]], {"fields": ["name"]}) \
+            if self._uid else None
+        if datos is None:
+            self._autenticar()
+            datos = self._ejecutar("res.users", "read", [[self._uid]], {"fields": ["name"]})
         return Resultado(True, f"Conectado como {datos[0]['name']}")
 
-    def enviar(self, orden: Orden) -> Resultado:
-        # PENDIENTE: definir qué es un "proceso" en Odoo (¿mrp.workorder?).
-        # Por ahora solo comprueba que la conexión funciona, no modifica nada.
-        def accion() -> Resultado:
-            self._autenticar()
-            return Resultado(True, f"{orden.value}: conexión OK, el mapeo a Odoo está pendiente")
+    def leer_orden(self, id_orden: int) -> OrdenDeTrabajo:
+        """Lee la WO desde Odoo. Lanza OrdenNoExiste si no está."""
+        datos = self._ejecutar("mrp.workorder", "read", [[id_orden]], {"fields": CAMPOS_WO})
+        if not datos:
+            raise OrdenNoExiste(f"No existe la orden de trabajo {id_orden}")
+        return OrdenDeTrabajo.desde_odoo(datos[0], self._uid)
 
-        return self._con_manejo_de_errores(accion)
+    def _llamar_boton(self, metodo: str, id_orden: int) -> None:
+        """Ejecuta un botón de mrp.workorder. Solo tolera el Fault de retorno None."""
+        try:
+            self._ejecutar("mrp.workorder", metodo, [[id_orden]])
+        except xmlrpc.client.Fault as e:
+            if MSG_RETORNO_NONE in e.faultString:
+                return
+            raise
+
+    def enviar(self, orden: Orden, id_orden: int) -> Resultado:
+        return self._con_manejo_de_errores(lambda: self._enviar(orden, id_orden))
+
+    def _enviar(self, orden: Orden, id_orden: int) -> Resultado:
+        # 1) Leer: Odoo es la fuente de verdad, no un estado guardado acá.
+        antes = self.leer_orden(id_orden)
+        estado = derivar_estado(antes)
+        # 2) Validar ANTES de escribir.
+        if not puede(estado, orden):
+            return Resultado(False, f"{orden.value} no es válida: la orden está {estado.value}")
+        # 3) Escribir.
+        self._llamar_boton(BOTON_POR_ORDEN[orden], id_orden)
+        # 4) Verificar leyendo de nuevo: no se confía en la respuesta del botón.
+        despues = self.leer_orden(id_orden)
+        if not cumple_postcondicion(orden, despues):
+            return Resultado(False, f"Odoo no reflejó '{orden.value}': "
+                                    f"ahora está {derivar_estado(despues).value}")
+        return Resultado(True, f"{orden.value} aplicada ({derivar_estado(despues).value})")
 
     def _con_manejo_de_errores(self, accion) -> Resultado:
         try:
@@ -66,6 +121,10 @@ class OdooBackend:
         except FileNotFoundError:
             return Resultado(False, f"No existe la clave en {self._key_file}")
         except ErrorDeLogin as e:
+            return Resultado(False, str(e))
+        except OrdenNoExiste as e:
+            return Resultado(False, str(e))
+        except ValueError as e:
             return Resultado(False, str(e))
         except xmlrpc.client.Fault as e:
             return Resultado(False, f"Odoo rechazó el pedido: {e.faultString[:120]}")
