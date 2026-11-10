@@ -6,7 +6,8 @@ let
   ventaScript = pkgs.writeShellScriptBin "interfaz-venta" ''
     export DISPLAY=:0
     export XAUTHORITY=/home/pos001/.Xauthority
-    exec ${pythonConPyQt}/bin/python ${./src/centros_de_trabajo/ui/interfaz_principal.py}
+    export PYTHONPATH="${./src}"
+    exec ${pythonConPyQt}/bin/python -m centros_de_trabajo
   '';
 
 in {
@@ -24,3 +25,4 @@ in {
     };
   };
 }
+# banana
