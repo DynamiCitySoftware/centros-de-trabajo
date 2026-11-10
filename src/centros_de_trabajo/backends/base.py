@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-from centros_de_trabajo.core.ordenes import Orden
+from centros_de_trabajo.core.ordenes import Orden, OrdenDeTrabajo
 
 
 @dataclass(frozen=True)
@@ -12,5 +12,9 @@ class Resultado:
 
 class Backend(Protocol):
     def enviar(self, orden: Orden, id_orden: int) -> Resultado:
-        """Ejecuta `orden` sobre la orden de trabajo `id_orden` (id de mrp.workorder)."""
+        """Ejecuta una orden sobre una WO identificada."""
+        ...
+
+    def listar_ordenes(self) -> list[OrdenDeTrabajo]:
+        """Lista las WO visibles según los criterios del operario."""
         ...

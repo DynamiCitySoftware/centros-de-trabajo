@@ -20,6 +20,17 @@ BOTON_POR_ORDEN = {
 
 CAMPOS_WO = ["name", "state", "is_user_working", "working_state", "working_user_ids"]
 
+TAMANO_PAGINA_LISTADO = 200
+
+CAMPOS_LISTADO_WO = [
+    "id",
+    "name",
+    "state",
+    "is_user_working",
+    "working_state",
+    "working_user_ids",
+]
+
 
 class ErrorDeLogin(Exception):
     """Odoo respondió, pero no aceptó base + usuario + clave."""
@@ -132,3 +143,50 @@ class OdooBackend:
             return Resultado(False, f"HTTP {e.errcode}")
         except (ExpatError, OSError) as e:
             return Resultado(False, f"Sin respuesta válida de Odoo: {e}")
+    
+    def listar_ordenes(self) -> list[OrdenDeTrabajo]:
+        """Lista todas las WO ready/done, las asignadas al usuario
+        y aquellas en las que tiene o tuvo registros de tiempo.
+        """
+        self._autenticar()
+        uid = self._uid
+
+        dominio = [
+            "|", "|", "|",
+            ("state", "=", "ready"),
+            ("state", "=", "done"),
+            ("production_id.user_id", "=", uid),
+            ("time_ids.user_id", "=", uid),
+        ]
+
+        registros_por_id = {}
+        offset = 0
+
+        while True:
+            pagina = self._ejecutar(
+                "mrp.workorder",
+                "search_read",
+                [dominio],
+                {
+                    "fields": CAMPOS_LISTADO_WO,
+                    "limit": TAMANO_PAGINA_LISTADO,
+                    "offset": offset,
+                    "order": "id asc",
+                },
+            )
+
+            if not pagina:
+                break
+
+            for registro in pagina:
+                registros_por_id[registro["id"]] = registro
+
+            if len(pagina) < TAMANO_PAGINA_LISTADO:
+                break
+
+            offset += len(pagina)
+
+        return [
+            OrdenDeTrabajo.desde_odoo(registro, uid)
+            for registro in registros_por_id.values()
+        ]
