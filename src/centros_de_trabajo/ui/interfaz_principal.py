@@ -27,6 +27,12 @@ class InterfazVenta(QMainWindow):
 
     def __init__(self, backend: Backend) -> None:
         super().__init__()
+        # refresco automatico
+        self._timer = QTimer(self)
+        self._timer.setInterval(10000)
+        self._timer.timeout.connect(lambda: self.refrescar_ordenes())
+        self._timer.start()
+
         self.backend = backend
         self._ordenes_por_id = {}
         self._listado_disponible = False
@@ -187,6 +193,7 @@ class InterfazVenta(QMainWindow):
 
         try:
             resultado = self.backend.enviar(accion, id_orden)
+            print(f"[kiosco] WO {id_orden} {accion.value} -> ok={resultado.ok} {resultado.mensaje}", flush=True)
         except Exception as error:
             self.mensaje.setText(f"Error al enviar la orden: {error}")
             return
