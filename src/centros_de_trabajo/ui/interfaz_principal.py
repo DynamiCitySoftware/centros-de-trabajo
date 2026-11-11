@@ -36,6 +36,7 @@ class InterfazVenta(QMainWindow):
         self.backend = backend
         self._ordenes_por_id = {}
         self._listado_disponible = False
+        self._ids_conocidos: set[int] = set()
 
         self.setWindowTitle("KIOSCO Torneria - Prototipo UI")
         self.setMinimumSize(800, 500)
@@ -125,6 +126,11 @@ class InterfazVenta(QMainWindow):
 
         self._listado_disponible = True
         self._ordenes_por_id = {orden.id: orden for orden in ordenes}
+
+        ids_actuales = set(self._ordenes_por_id.keys())
+        nuevas_ids = sorted(ids_actuales - self._ids_conocidos)
+        primera_carga = not self._ids_conocidos
+        self._ids_conocidos = ids_actuales
         self.lista_ordenes.clear()
 
         item_seleccionado = None
@@ -147,6 +153,12 @@ class InterfazVenta(QMainWindow):
 
         if mensaje is not None:
             self.mensaje.setText(mensaje)
+        elif nuevas_ids and not primera_carga:
+            if len(nuevas_ids) == 1:
+                wo_nueva = self._ordenes_por_id[nuevas_ids[0]]
+                self.mensaje.setText(f"Nueva orden cargada: WO {wo_nueva.id} - {wo_nueva.nombre}")
+            else:
+                self.mensaje.setText(f"{len(nuevas_ids)} nuevas órdenes cargadas: {', '.join(f'WO {i}' for i in nuevas_ids)}")
         else:
             self.mensaje.setText(f"{len(ordenes)} órdenes cargadas.")
 
