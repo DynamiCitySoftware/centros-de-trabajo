@@ -79,6 +79,14 @@ class InterfazVenta(QMainWindow):
             )
 
         layout.addLayout(fila_botones)
+        self.boton_refrescar = QPushButton("Refrescar\n[F5]")
+        self.boton_refrescar.setObjectName("btn_refrescar")
+        self.boton_refrescar.setStyleSheet(self.get_style("#2ecc71"))  # esto es un valor generico, verde para distinguir de acciones
+        self.boton_refrescar.clicked.connect(lambda: self.refrescar_ordenes())
+        layout.addWidget(self.boton_refrescar)
+
+        atajo_refrescar = QShortcut(QKeySequence("F5"), self)
+        atajo_refrescar.activated.connect(lambda: self.refrescar_ordenes())
         self.setCentralWidget(container)
 
         # Atajo de salida para desarrollador: Ctrl+Alt+S
