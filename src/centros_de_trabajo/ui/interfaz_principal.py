@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QVBoxLayout,
     QWidget,
+    QSizePolicy,
 )
 
 from centros_de_trabajo.backends.base import Backend
@@ -55,6 +56,8 @@ class InterfazVenta(QMainWindow):
 
         for orden, texto, tecla in self.ACCIONES:
             boton = QPushButton(f"{texto}\n[{tecla}]")
+            boton.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+            boton.setMinimumWidth(0) 
             boton.setObjectName(f"btn_{orden.value}")
             boton.setStyleSheet(self.get_style("#3498db"))
             boton.clicked.connect(
@@ -84,14 +87,15 @@ class InterfazVenta(QMainWindow):
         """Genera el estilo visual de los botones."""
         return f"""
             QPushButton {{
-                font-size: 24px;
+                font-size: 18px;
                 font-weight: bold;
                 background-color: {color};
                 color: white;
                 border-radius: 16px;
-                margin: 8px;
+                margin: 4px;
                 border: 4px solid #2980b9;
-                padding: 12px;
+                padding: 8px;
+                min-width: 0px;
             }}
         """
 
