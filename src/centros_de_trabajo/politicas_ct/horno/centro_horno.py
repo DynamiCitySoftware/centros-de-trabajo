@@ -22,7 +22,7 @@ class CentroHorno(CentroDeTrabajo):
         if estado_kiosco == EstadoKiosco.DETENIDO:
             return {Orden.INICIAR}
         if estado_kiosco == EstadoKiosco.EN_CURSO:
-            return {Orden.TERMINAR, Orden.ABORTAR}
+            return {Orden.TERMINAR}
         return set()
 
     def tiempo_proceso_minutos(self, orden_de_trabajo: OrdenDeTrabajo) -> float:

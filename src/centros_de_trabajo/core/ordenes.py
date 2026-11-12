@@ -6,7 +6,6 @@ from enum import Enum
 class Orden(Enum):
     INICIAR = "iniciar"
     TERMINAR = "terminar"
-    ABORTAR = "abortar"
 
 
 @dataclass(frozen=True)

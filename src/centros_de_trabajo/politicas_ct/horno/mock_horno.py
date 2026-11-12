@@ -9,7 +9,6 @@ class MockHorno:
     def __init__(self) -> None:
         self._curva_en_curso: CurvaHorno | None = None
         self._timestamp_inicio: float | None = None
-        self._abortado: bool = False
 
     def iniciar_curva(self, curva_a_ejecutar: CurvaHorno) -> list[str]:
         errores_validacion = curva_a_ejecutar.validar()
@@ -17,16 +16,10 @@ class MockHorno:
             return errores_validacion
         self._curva_en_curso = curva_a_ejecutar
         self._timestamp_inicio = time.time()
-        self._abortado = False
         return []
 
-    def abortar(self) -> None:
-        self._abortado = True
-        self._curva_en_curso = None
-        self._timestamp_inicio = None
-
     def esta_en_marcha(self) -> bool:
-        return self._curva_en_curso is not None and not self._abortado
+        return self._curva_en_curso is not None
 
     def leer_temperatura_actual(self) -> float:
         if not self.esta_en_marcha():

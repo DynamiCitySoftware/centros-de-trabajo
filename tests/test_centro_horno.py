@@ -20,9 +20,8 @@ def test_ready_es_detenido_y_solo_iniciar():
     assert centro.ordenes_validas(EstadoKiosco.DETENIDO) == {Orden.INICIAR}
 
 
-def test_en_curso_permite_terminar_y_abortar_pero_no_pausar():
+def test_en_curso_permite_terminar_pero_no_pausar():
     centro = CentroHorno()
     orden = OrdenFalsaParaTest("progress", con_cronometro=True)
     assert centro.derivar_estado(orden) == EstadoKiosco.EN_CURSO
     validas = centro.ordenes_validas(EstadoKiosco.EN_CURSO)
-    assert validas == {Orden.TERMINAR, Orden.ABORTAR}

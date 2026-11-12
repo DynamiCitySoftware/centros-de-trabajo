@@ -22,13 +22,12 @@ def test_fake_lista_ordenado_por_id():
 
 def test_fake_acepta_las_ordenes_del_horno():
     backend = FakeBackend([_orden_horno(34)])
-    for orden in [Orden.INICIAR, Orden.TERMINAR, Orden.ABORTAR]:
+    for orden in [Orden.INICIAR, Orden.TERMINAR]:
         resultado = backend.enviar(orden, 34)
         assert resultado.ok
     assert backend.enviadas == [
         (Orden.INICIAR, 34),
         (Orden.TERMINAR, 34),
-        (Orden.ABORTAR, 34),
     ]
 
 

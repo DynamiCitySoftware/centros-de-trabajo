@@ -41,7 +41,6 @@ def test_enviar_llama_boton_correcto():
     backend.leer_orden = lambda i: _registro_horno(i)  # type: ignore
     backend._llamar_boton = MagicMock(return_value=None)  # type: ignore
     # solo comprobamos mapeo INICIAR->button_start y TERMINAR->button_finish
-    # ABORTAR usa VALOR_GENERICO_METODO_ABORTAR hasta que lo confirmes
     from centros_de_trabajo.backends.odoo import BOTON_POR_ORDEN
     assert BOTON_POR_ORDEN[Orden.INICIAR] == "button_start"
     assert BOTON_POR_ORDEN[Orden.TERMINAR] == "button_finish"
