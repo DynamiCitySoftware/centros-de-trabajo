@@ -5,7 +5,7 @@ from centros_de_trabajo.politicas_ct.base import CentroDeTrabajo, EstadoKiosco, 
 
 class CentroHorno(CentroDeTrabajo):
     nombre_odoo = "Horno Microondas"  # confirmado por tus WO 34/35/38
-    operaciones_soportadas = ["horneado simple"]  # de tu BoM de Pan
+    operaciones_soportadas = ["horneado simple", "horneado budin"]  # de tu BoM de Pan
 
     def derivar_estado(self, orden_de_trabajo: OrdenDeTrabajo) -> EstadoKiosco:
         if orden_de_trabajo.estado_odoo == "done":
