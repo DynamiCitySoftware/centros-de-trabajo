@@ -3,7 +3,6 @@ from pathlib import Path
 from xml.parsers.expat import ExpatError
 
 from centros_de_trabajo.backends.base import Resultado
-from centros_de_trabajo.core.estado import cumple_postcondicion, derivar_estado, puede
 from centros_de_trabajo.core.ordenes import Orden, OrdenDeTrabajo
 
 # Texto fijo del error de Python cuando un botón de Odoo devuelve None y el
@@ -13,8 +12,6 @@ MSG_RETORNO_NONE = "cannot marshal None"
 # Medido en scripts/probar_escrituras.py
 BOTON_POR_ORDEN = {
     Orden.INICIAR: "button_start",
-    Orden.REANUDAR: "button_start",   # Odoo usa el mismo botón para reanudar
-    Orden.PAUSAR: "button_pending",
     Orden.TERMINAR: "button_finish",
 }
 

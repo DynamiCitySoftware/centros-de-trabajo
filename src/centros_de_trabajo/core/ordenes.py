@@ -1,39 +1,41 @@
+# Ruta: src/centros_de_trabajo/core/ordenes.py en PC LAB
 from dataclasses import dataclass
 from enum import Enum
 
 
 class Orden(Enum):
-    """Los 4 comandos que el kiosco puede enviar."""
     INICIAR = "iniciar"
-    PAUSAR = "pausar"
-    REANUDAR = "reanudar"
     TERMINAR = "terminar"
+    ABORTAR = "abortar"
 
 
 @dataclass(frozen=True)
 class OrdenDeTrabajo:
-    """Una orden de trabajo tal como la informa Odoo (modelo mrp.workorder).
-
-    Solo guarda datos, no decide nada. frozen=True: una vez creada no se modifica,
-    así nadie la "corrige" por su cuenta y se desvía de lo que dijo Odoo.
-    """
-    id: int
-    nombre: str
-    state: str                  # valor crudo de Odoo: pending/waiting/ready/progress/done/cancel
-    is_user_working: bool       # ¿el usuario que consulta tiene el cronómetro abierto?
-    working_state: str          # estado del centro de trabajo: normal / blocked / done
-    otros_trabajando: bool = False  # ¿hay otro usuario con el cronómetro abierto?
+    id_odoo: int
+    operacion_nombre: str  # ej: "horneado simple", viene de WO['name']
+    estado_odoo: str  # ej: "ready", "progress", "done", "cancel"
+    workcenter_nombre: str  # ej: "Horno Microondas", viene de WO['workcenter_id'][1]
+    usuario_es_responsable: bool
+    existe_cronometro_para_usuario: bool
+    duracion_minutos: float  # mapea WO['duration'], es tiempo_proceso sum(time_ids)
 
     @classmethod
-    def desde_odoo(cls, registro: dict, uid: int) -> "OrdenDeTrabajo":
-        """registro: un dict de search_read con id, name, state, is_user_working,
-        working_state y working_user_ids. uid: el id del usuario logueado."""
-        otros = [u for u in registro.get("working_user_ids", []) if u != uid]
+    def desde_odoo(
+        cls,
+        registro_odoo: dict,
+        uid_actual: int,
+        id_responsable_produccion: int | None = None,
+    ) -> "OrdenDeTrabajo":
+        working_ids = registro_odoo.get("working_user_ids") or []
         return cls(
-            id=registro["id"],
-            nombre=registro["name"],
-            state=registro["state"],
-            is_user_working=bool(registro["is_user_working"]),
-            working_state=registro["working_state"],
-            otros_trabajando=bool(otros),
+            id_odoo=registro_odoo["id"],
+            operacion_nombre=registro_odoo.get("name") or "",
+            estado_odoo=registro_odoo.get("state") or "",
+            workcenter_nombre=(registro_odoo.get("workcenter_id") or ["", ""])[1] or "",
+            usuario_es_responsable=(
+                id_responsable_produccion == uid_actual
+                if id_responsable_produccion is not None else False
+            ),
+            existe_cronometro_para_usuario=uid_actual in working_ids,
+            duracion_minutos=float(registro_odoo.get("duration") or 0.0),
         )

@@ -1,5 +1,4 @@
 from centros_de_trabajo.backends.fake import FakeBackend
-from centros_de_trabajo.core.estado import Estado, derivar_estado
 from centros_de_trabajo.core.ordenes import Orden, OrdenDeTrabajo
 
 
