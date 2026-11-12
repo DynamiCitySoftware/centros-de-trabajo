@@ -11,12 +11,6 @@ class EstadoKiosco(enum.Enum):
     NO_DISPONIBLE = "no_disponible"
 
 
-class Orden(enum.Enum):
-    INICIAR = "iniciar"
-    TERMINAR = "terminar"
-    ABORTAR = "abortar"
-
-
 class CentroDeTrabajo(abc.ABC):
     nombre_odoo: str = ""
     operaciones_soportadas: list[str] = []

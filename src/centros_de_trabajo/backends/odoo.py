@@ -1,3 +1,4 @@
+# Ruta: src/centros_de_trabajo/backends/odoo.py en PC LAB
 import xmlrpc.client
 from pathlib import Path
 from xml.parsers.expat import ExpatError
@@ -7,15 +8,20 @@ from centros_de_trabajo.core.ordenes import Orden, OrdenDeTrabajo
 
 # Texto fijo del error de Python cuando un botón de Odoo devuelve None y el
 # servidor no puede serializarlo. Medido: la acción SÍ se ejecutó.
-MSG_RETORNO_NONE = "cannot marshal None"
+MSG_RETORNO_NONE = "cannot marshall None"
 
-# Medido en scripts/probar_escrituras.py
+# Medido en scripts/probar_escrituras.py para INICIAR y TERMINAR.
+# ABORTAR es VALOR GENERICO a confirmar contra tu Odoo real.
+METODO_ABORTAR_GENERICO = "button_cancel"  # <- VALOR GENERICO, reemplazar si tu Odoo usa otro (ej: action_cancel)
+
 BOTON_POR_ORDEN = {
     Orden.INICIAR: "button_start",
     Orden.TERMINAR: "button_finish",
+    Orden.ABORTAR: METODO_ABORTAR_GENERICO,
 }
 
-CAMPOS_WO = ["name", "state", "is_user_working", "working_state", "working_user_ids"]
+CAMPOS_WO = ["name", "state", "is_user_working", "working_state", "working_user_ids",
+             "workcenter_id", "duration"]
 
 TAMANO_PAGINA_LISTADO = 200
 
@@ -26,6 +32,8 @@ CAMPOS_LISTADO_WO = [
     "is_user_working",
     "working_state",
     "working_user_ids",
+    "workcenter_id",
+    "duration",
 ]
 
 
@@ -41,7 +49,7 @@ def _proxy(url: str, ruta: str, timeout: float) -> xmlrpc.client.ServerProxy:
     """ServerProxy con timeout (por defecto xmlrpc no tiene ninguno)."""
     base = xmlrpc.client.SafeTransport if url.startswith("https") else xmlrpc.client.Transport
 
-    class _Transporte(base):
+    class _Transporte(base):  # type: ignore
         def make_connection(self, host):
             conexion = super().make_connection(host)
             conexion.timeout = timeout
@@ -62,8 +70,8 @@ class OdooBackend:
         if self._uid:
             return
         self._clave = self._key_file.read_text().strip()
-        common = _proxy(self._url, "/xmlrpc/2/common", self._timeout)
-        uid = common.authenticate(self._db, self._user, self._clave, {})
+        comun = _proxy(self._url, "/xmlrpc/2/common", self._timeout)
+        uid = comun.authenticate(self._db, self._user, self._clave, {})
         if not uid:
             raise ErrorDeLogin("usuario, base o clave incorrectos")
         self._uid = uid
@@ -81,8 +89,8 @@ class OdooBackend:
         return self._con_manejo_de_errores(self._leer_usuario)
 
     def _leer_usuario(self) -> Resultado:
-        datos = self._ejecutar("res.users", "read", [[self._uid or 0]], {"fields": ["name"]}) \
-            if self._uid else None
+        datos = self._ejecutar("res.users", "read", [[self._uid or 0]], {"fields": ["name"]}
+                               if self._uid else None)
         if datos is None:
             self._autenticar()
             datos = self._ejecutar("res.users", "read", [[self._uid]], {"fields": ["name"]})
@@ -110,18 +118,15 @@ class OdooBackend:
     def _enviar(self, orden: Orden, id_orden: int) -> Resultado:
         # 1) Leer: Odoo es la fuente de verdad, no un estado guardado acá.
         antes = self.leer_orden(id_orden)
-        estado = derivar_estado(antes)
-        # 2) Validar ANTES de escribir.
-        if not puede(estado, orden):
-            return Resultado(False, f"{orden.value} no es válida: la orden está {estado.value}")
-        # 3) Escribir.
-        self._llamar_boton(BOTON_POR_ORDEN[orden], id_orden)
-        # 4) Verificar leyendo de nuevo: no se confía en la respuesta del botón.
+        # 2) Escribir: sin validación genérica, la política vive en politicas_ct.
+        #    CentroHorno.ordenes_validas() ya decidió si este botón está permitido.
+        metodo = BOTON_POR_ORDEN.get(orden)
+        if metodo is None:
+            return Resultado(False, f"{orden.value} no soportada por OdooBackend.")
+        self._llamar_boton(metodo, id_orden)
+        # 3) Releer y devolver: no se confía en la respuesta del botón.
         despues = self.leer_orden(id_orden)
-        if not cumple_postcondicion(orden, despues):
-            return Resultado(False, f"Odoo no reflejó '{orden.value}': "
-                                    f"ahora está {derivar_estado(despues).value}")
-        return Resultado(True, f"{orden.value} aplicada ({derivar_estado(despues).value})")
+        return Resultado(True, f"{orden.value} aplicada ({antes.estado_odoo} -> {despues.estado_odoo})")
 
     def _con_manejo_de_errores(self, accion) -> Resultado:
         try:
@@ -140,25 +145,20 @@ class OdooBackend:
             return Resultado(False, f"HTTP {e.errcode}")
         except (ExpatError, OSError) as e:
             return Resultado(False, f"Sin respuesta válida de Odoo: {e}")
-    
+
     def listar_ordenes(self) -> list[OrdenDeTrabajo]:
-        """Lista todas las WO ready/done, las asignadas al usuario
-        y aquellas en las que tiene o tuvo registros de tiempo.
+        """Lista las WO ready/progress/done, las asignadas al usuario
+        y aquellas en las que tiene o tuvo registro de tiempo.
         """
         self._autenticar()
         uid = self._uid
 
         dominio = [
-            "|", "|", "|",
-            ("state", "=", "ready"),
-            ("state", "=", "done"),
-            ("production_id.user_id", "=", uid),
-            ("time_ids.user_id", "=", uid),
+            ("state", "in", ["ready", "progress", "done"]),
         ]
 
         registros_por_id = {}
         offset = 0
-
         while True:
             pagina = self._ejecutar(
                 "mrp.workorder",
@@ -171,16 +171,12 @@ class OdooBackend:
                     "order": "id asc",
                 },
             )
-
             if not pagina:
                 break
-
             for registro in pagina:
                 registros_por_id[registro["id"]] = registro
-
             if len(pagina) < TAMANO_PAGINA_LISTADO:
                 break
-
             offset += len(pagina)
 
         return [
