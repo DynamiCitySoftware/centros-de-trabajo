@@ -3,6 +3,7 @@ import traceback
 import xmlrpc.client
 from pathlib import Path
 from xml.parsers.expat import ExpatError
+import json
 
 from centros_de_trabajo.backends.base import Resultado
 from centros_de_trabajo.core.ordenes import Orden, OrdenDeTrabajo
@@ -47,7 +48,7 @@ class OdooBackend:
         self._key_file, self._timeout = key_file, timeout
         self._uid: int | None = None
         self._clave: str | None = None
-        self._modelos: xmlrpc.client.ServerProxy | None = None
+        self._cliente_proxy_modelos: xmlrpc.client.ServerProxy | None = None
 
     def _autenticar(self) -> None:
         if self._uid:
@@ -63,11 +64,11 @@ class OdooBackend:
 
     def _ejecutar(self, modelo: str, metodo: str, args: list, kwargs: dict | None = None):
         self._autenticar()
-        if self._modelos is None:
-            self._modelos = _proxy(self._url, "/xmlrpc/2/object", self._timeout)
+        if self._cliente_proxy_modelos is None:
+            self._cliente_proxy_modelos = _proxy(self._url, "/xmlrpc/2/object", self._timeout)
         print(f"[odoo] exec {modelo}.{metodo} args={args} kwargs={kwargs}", flush=True)
         try:
-            ret = self._modelos.execute_kw(self._db, self._uid, self._clave, modelo, metodo, args, kwargs or {})
+            ret = self._cliente_proxy_modelos.execute_kw(self._db, self._uid, self._clave, modelo, metodo, args, kwargs or {})
             print(f"[odoo] ok {modelo}.{metodo} tipo_ret={type(ret).__name__}", flush=True)
             return ret
         except Exception as e:
@@ -163,3 +164,8 @@ class OdooBackend:
             offset += len(pagina)
         print(f"[odoo] listar_ordenes total={len(registros_por_id)}", flush=True)
         return [OrdenDeTrabajo.desde_odoo(r, uid) for r in registros_por_id.values()]
+    
+
+    def publicar_curva_en_chatter(self, id_orden: int, curva) -> Resultado:
+        cuerpo = f"Curva horno: {json.dumps({'rampa': [curva.rampa.temperatura_objetivo, curva.rampa.potencia], 'meseta_temp': curva.meseta_temperatura, 'meseta_min': curva.meseta_tiempo_minutos, 'enf': [curva.enfriamiento.temperatura_objetivo, curva.enfriamiento.potencia]}, ensure_ascii=False)}"
+        return self._con_manejo_de_errores(lambda: Resultado(True, str(self._ejecutar("mrp.workorder", "message_post", [[id_orden]], {"body": cuerpo, "message_type": "comment"}))))
